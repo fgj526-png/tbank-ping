@@ -1,0 +1,36 @@
+name: ping
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ping:
+    if: github.event.schedule != '0 4 * * 1'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping dashboard /ping
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" -m 25 "$PING_URL")
+          echo "HTTP $code at $(date -u +%FT%TZ)"
+          if [ "$code" != "200" ]; then
+            sleep 10
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 25 "$PING_URL")
+            echo "retry HTTP $code"
+          fi
+          [ "$code" = "200" ]
+        env:
+          PING_URL: ${{ secrets.PING_URL }}
+  heartbeat:
+    if: github.event.schedule == '0 4 * * 1'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Weekly heartbeat (keeps schedule alive)
+        run: |
+          git config user.name "heartbeat-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git commit --allow-empty -m "heartbeat $(date -u +%F)"
+          git push
